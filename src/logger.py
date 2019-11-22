@@ -7,6 +7,10 @@ import tensorflow as tf
 import numpy as np
 import scipy.misc
 
+import PIL
+import IPython.display
+
+
 try:
     from StringIO import StringIO  # Python 2.7
 except ImportError:
@@ -22,7 +26,6 @@ class Logger(object):
         self.writer.add_summary(summary, step)
 
     def image_summary(self, tag, images, step):
-
         img_summaries = []
         for i, img in enumerate(images):
             # Write the image to a string
@@ -45,7 +48,6 @@ class Logger(object):
         self.writer.flush()
 
     def video_summary(self, tag, videos, step):
-
         sh = list(videos.shape)
         sh[-1] = 1
 
@@ -64,8 +66,12 @@ class Logger(object):
             v = [np.squeeze(f) for f in np.split(v, v.shape[0], axis=0)]
             img = np.concatenate(v, axis=1)[:, :-1, :]
 
-            scipy.misc.toimage(img).save(s, format="png")
+            #scipy.misc.toimage(img).save(s, format="png")
 
+            f = StringIO()
+            PIL.Image.fromarray(img).save(f, "png")
+            IPython.display.display(IPython.display.Image(data=f.getvalue()))
+            
             # Create an Image object
             img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
                                        height=img.shape[0],

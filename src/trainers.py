@@ -21,7 +21,6 @@ if torch.cuda.is_available():
 else:
     T = torch
 
-
 def images_to_numpy(tensor):
     generated = tensor.data.cpu().numpy().transpose(0, 2, 3, 1)
     generated[generated < -1] = -1
@@ -271,10 +270,10 @@ class Trainer(object):
                                          sample_fake_image_batch, sample_fake_video_batch,
                                          opt_generator)
 
-            logs['l_gen'] += l_gen.data[0]
+            logs['l_gen'] += l_gen.data
 
-            logs['l_image_dis'] += l_image_dis.data[0]
-            logs['l_video_dis'] += l_video_dis.data[0]
+            logs['l_image_dis'] += l_image_dis.data
+            logs['l_video_dis'] += l_video_dis.data
 
             batch_num += 1
 

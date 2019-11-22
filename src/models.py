@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data
 from torch.autograd import Variable
+import torch.nn.functional as F
 
 import numpy as np
 
@@ -182,6 +183,29 @@ class CategoricalVideoDiscriminator(VideoDiscriminator):
         return labels, categ
 
 
+
+class ContentEncoderNetwork(nn.Module):
+    def __init__(self, x_dim, h_dim1, z_dim):
+        super(ContentEncoderNetwork, self).__init__()
+        # encoder part
+        self.x_dim = x_dim
+        self.fc1 = nn.Linear(x_dim, h_dim1)
+        self.fc2 = nn.Linear(self.fc1.out_features, self.fc1.out_features//2)
+        self.fc31 = nn.Linear(self.fc2.out_features, z_dim)
+        self.fc32 = nn.Linear(self.fc2.out_features, z_dim)
+
+    def encoder(self, x):
+        h1 = F.leaky_relu(self.fc1(x))
+        h2 = F.leaky_relu(self.fc2(h1))
+        # returns mu, log_var
+        return self.fc31(h2), self.fc32(h2)
+
+    def forward(self, x):
+        mu, log_var = self.encoder(x.view(-1, self.x_dim))
+        return mu, log_var
+
+
+
 class VideoGenerator(nn.Module):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
                  video_length, ngf=64):
@@ -213,6 +237,9 @@ class VideoGenerator(nn.Module):
             nn.ConvTranspose2d(ngf, self.n_channels, 4, 2, 1, bias=False),
             nn.Tanh()
         )
+
+        self.content_encoder = ContentEncoderNetwork(x_dim=64*64*3, h_dim1= 512, z_dim=dim_z_content)
+
 
     def sample_z_m(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
@@ -247,11 +274,27 @@ class VideoGenerator(nn.Module):
         return Variable(one_hot_video), classes_to_generate
 
     def sample_z_content(self, num_samples, video_len=None):
+        # TODO: this should receive an image that I'd use, and I should change the methods signature all the way up.
+
         video_len = video_len if video_len is not None else self.video_length
 
-        content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
-        content = np.repeat(content, video_len, axis=0)
-        content = torch.from_numpy(content)
+        #content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
+        x_tmp = torch.randn(64*64*3).cuda()
+
+        mu, log_var = self.content_encoder(x_tmp)
+        std = torch.exp(0.5*log_var)
+        eps = torch.randn_like(std)
+        # return z sample
+        content = mu + std * eps
+
+        
+        #content = np.repeat(content, video_len, axis=0)
+        #content = torch.from_numpy(content)
+        #content = torch.repeat_interleave(content, repeats=video_len, dim=0)
+        
+        content = content.repeat(video_len, 1)
+
+
         if torch.cuda.is_available():
             content = content.cuda()
         return Variable(content)
